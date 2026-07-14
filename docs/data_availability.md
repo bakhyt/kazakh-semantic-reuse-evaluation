@@ -1,20 +1,36 @@
 # Data Availability
 
-PAN-KK is available through Zenodo:
+The full datasets are not redistributed in this repository.
 
-https://doi.org/10.5281/zenodo.17538305
+## PAN-KK
+
+PAN-KK was introduced in the authors' previous work. The full PAN-KK dataset is not currently redistributed in this repository.
+
+This repository provides code, configuration files, evaluation scripts, documentation, and result tables to support reproducibility of the CLEF 2026 paper.
+
+## External Kazakh News Benchmark
 
 The external Kazakh news benchmark is based on articles from Nur.kz and Tengrinews.kz.
 
-Full news articles are not redistributed in this repository because copyright remains with the original publishers.
+Full news articles are not redistributed because copyright remains with the original publishers.
 
-Where possible, this repository provides legally shareable materials such as:
+Where possible, this repository may provide legally shareable materials such as:
 
-- annotation labels
+- annotation label schema
 - split information
-- metadata
+- metadata format
 - URLs or identifiers
 - documentation
 - reconstruction instructions
 
-The code, configuration files, evaluation scripts, and result tables are provided to support reproducibility of the CLEF 2026 paper.
+## Code and Results
+
+The repository provides:
+
+- preprocessing scripts
+- candidate retrieval scripts
+- pairwise evaluation scripts
+- news-domain evaluation scripts
+- long-document evaluation scripts
+- configuration files
+- reported result tables
