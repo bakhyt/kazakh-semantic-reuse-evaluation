@@ -1,1 +1,5 @@
-
+Method,Precision,Recall,F1,Time_seconds
+TF-IDF char 3-5,0.8214,0.6890,0.7231,1468.68
+SimHash + TF-IDF,0.2474,0.9719,0.3504,444.18
+TF-IDF only,0.2375,0.9756,0.3390,568.97
+SimHash only,0.1992,0.9768,0.2940,336.49
