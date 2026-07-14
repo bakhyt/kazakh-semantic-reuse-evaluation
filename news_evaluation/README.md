@@ -39,3 +39,11 @@ python evaluate_news_predictions.py news_predictions.csv
 python evaluate_news_models_template.py \
   --input_csv path/to/news_pipeline_vs_gold.csv \
   --output_csv outputs/news_model_results.csv
+
+python evaluate_news_additional_models_template.py \
+  --input_csv path/to/news_pipeline_vs_gold.csv \
+  --distilbert_model_path path/to/distilbert-model \
+  --minilm_model_path path/to/minilm-model \
+  --bertmulti_model_path path/to/bertmulti-model \
+  --sbert_mpnet_model_path path/to/sbert-mpnet-model \
+  --output_csv outputs/news_additional_model_results.csv
