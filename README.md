@@ -4,7 +4,7 @@ This repository contains code, configurations, results, and documentation for th
 
 **Model Comparison for Kazakh Semantic Reuse Detection Across Pairwise, News, and Long-Document Evaluation**
 
-Authors: Bakhyt Bakiyev, Shuo Wang, and Mubashir Ali
+Authors: **Bakhyt Bakiyev, Shuo Wang, and Mubashir Ali**
 
 ## Overview
 
