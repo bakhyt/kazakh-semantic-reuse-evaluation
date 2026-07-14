@@ -35,3 +35,7 @@ predicted_label
 ```bash
 python evaluate_news_predictions.py news_predictions.csv
 ```
+
+python evaluate_news_models_template.py \
+  --input_csv path/to/news_pipeline_vs_gold.csv \
+  --output_csv outputs/news_model_results.csv
