@@ -1,1 +1,24 @@
-
+{
+  "note": "Adaptive SimHash thresholds used in the long-document candidate retrieval stage. Values should be checked against the final implementation.",
+  "fingerprint_bits": 64,
+  "feature_type": "TO_BE_CONFIRMED",
+  "tfidf_threshold": 0.10,
+  "transformer_max_length": 512,
+  "thresholds": [
+    {
+      "length_range": "short",
+      "condition": "TO_BE_CONFIRMED",
+      "max_hamming_distance": "TO_BE_CONFIRMED"
+    },
+    {
+      "length_range": "medium",
+      "condition": "TO_BE_CONFIRMED",
+      "max_hamming_distance": "TO_BE_CONFIRMED"
+    },
+    {
+      "length_range": "long",
+      "condition": "TO_BE_CONFIRMED",
+      "max_hamming_distance": "TO_BE_CONFIRMED"
+    }
+  ]
+}
