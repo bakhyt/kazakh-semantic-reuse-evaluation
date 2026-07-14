@@ -37,3 +37,15 @@ python evaluate_pairwise_additional_models_template.py \
   --bertmulti_model_path path/to/bertmulti-model \
   --sbert_mpnet_model_path path/to/sbert-mpnet-model \
   --output_csv outputs/pairwise_additional_model_results.csv
+
+  python evaluate_pairwise_all_models_template.py \
+  --test_csv path/to/test-balanced-4562.csv \
+  --xlmr_large_model_path path/to/xlmr-large-model \
+  --xlmr_base_model_path path/to/xlmr-base-model \
+  --distilbert_model_path path/to/distilbert-model \
+  --minilm_model_path path/to/minilm-model \
+  --bertmulti_model_path path/to/bertmulti-model \
+  --sbert_mpnet_model_path path/to/sbert-mpnet-model \
+  --jina_v3_model_path path/to/jina-v3-model \
+  --bge_gemma_model_path path/to/bge-gemma-model \
+  --output_csv outputs/pairwise_all_model_results.csv
