@@ -1,3 +1,16 @@
+"""
+Template for long-document semantic reuse evaluation.
+
+This script shows the evaluation structure used in the CLEF 2026 paper:
+1. preprocessing
+2. candidate retrieval
+3. semantic verification
+4. token-level evaluation
+
+Private paths, trained model locations, and non-redistributable data are not included.
+Users should provide their own model path and input CSV.
+"""
+
 import argparse
 import datetime
 import gc
@@ -15,52 +28,22 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 
 # =========================================================
-# Patch for Jina custom XLM-R code
-# =========================================================
-import transformers.models.xlm_roberta.modeling_xlm_roberta as xlm_mod
-
-if not hasattr(xlm_mod, "create_position_ids_from_input_ids"):
-    def create_position_ids_from_input_ids(input_ids, padding_idx, past_key_values_length=0):
-        mask = input_ids.ne(padding_idx).int()
-        incremental_indices = (
-            torch.cumsum(mask, dim=1).type_as(mask) + past_key_values_length
-        ) * mask
-        return incremental_indices.long() + padding_idx
-
-    xlm_mod.create_position_ids_from_input_ids = create_position_ids_from_input_ids
-
-
-# =========================================================
 # Configuration
 # =========================================================
 
-VERIFIER_CONFIG = {
-    "xlmr_large": {
-        "type": "classifier",
-        "threshold": 0.50,
-        "batch_size": 8,
-        "max_length": 512,
-    },
-    "xlmr_base": {
-        "type": "classifier",
-        "threshold": 0.50,
-        "batch_size": 8,
-        "max_length": 512,
-    },
-    "jina_v2_base_multi": {
-        "type": "jina_v2_classifier",
-        "threshold": 0.60,
-        "batch_size": 8,
-        "max_length": 1024,
-    },
+DEFAULT_CONFIG = {
+    "verifier": "jina_v2_base_multi",
+    "model_type": "jina_v2_classifier",
+    "threshold": 0.60,
+    "batch_size": 8,
+    "max_length": 1024,
+    "simhash_n": 1,
+    "short_sentence_k": 24,
+    "long_sentence_k": 31,
+    "short_sentence_condition": "lemma_token_count < 10",
+    "min_sentence_token_length": 2,
+    "lexical_similarity_threshold": 0.10,
 }
-
-
-SIMHASH_NGRAM_SIZE = 1
-SHORT_SENTENCE_K = 24
-LONG_SENTENCE_K = 31
-MIN_SENTENCE_TOKEN_LENGTH = 2
-LEXICAL_SIMILARITY_THRESHOLD = 0.10
 
 
 # =========================================================
@@ -68,10 +51,6 @@ LEXICAL_SIMILARITY_THRESHOLD = 0.10
 # =========================================================
 
 def preprocess_kazakh_text(text: str) -> str:
-    """
-    Basic Kazakh text normalisation before sentence segmentation,
-    lemmatisation, candidate retrieval, and token-level evaluation.
-    """
     text = text.lower()
     text = re.sub(r"\d+", "", text)
     text = re.sub(r"[^\w\s.!?]", "", text)
@@ -79,11 +58,7 @@ def preprocess_kazakh_text(text: str) -> str:
     return text
 
 
-def split_into_sentences(text: str, nlp, min_token_len: int = MIN_SENTENCE_TOKEN_LENGTH):
-    """
-    Split text into Kazakh sentences using Stanza.
-    Very short sentences are removed.
-    """
+def split_into_sentences(text: str, nlp, min_token_len: int):
     doc = nlp(preprocess_kazakh_text(text))
     return [
         sentence.text
@@ -92,11 +67,7 @@ def split_into_sentences(text: str, nlp, min_token_len: int = MIN_SENTENCE_TOKEN
     ]
 
 
-def lemmatize_text(text: str, nlp, cache: dict) -> str:
-    """
-    Lemmatise Kazakh text using Stanza.
-    Results are cached to avoid repeated processing.
-    """
+def lemmatize_text(text: str, nlp, cache: dict):
     if text in cache:
         return cache[text]
 
@@ -112,14 +83,10 @@ def lemmatize_text(text: str, nlp, cache: dict) -> str:
 
 
 # =========================================================
-# Candidate retrieval
+# Candidate Retrieval
 # =========================================================
 
 def get_shingles(text: str, n: int):
-    """
-    Create token-based n-gram shingles.
-    In the reported long-document setting, n = 1.
-    """
     words = text.split()
     if len(words) < n:
         return [text]
@@ -127,9 +94,6 @@ def get_shingles(text: str, n: int):
 
 
 def compute_simhash(text: str, n: int, cache: dict):
-    """
-    Compute SimHash fingerprint for text.
-    """
     if text in cache:
         return cache[text]
 
@@ -139,9 +103,6 @@ def compute_simhash(text: str, n: int, cache: dict):
 
 
 def lexical_similarity(text1: str, text2: str) -> float:
-    """
-    Compute TF-IDF cosine similarity between two text strings.
-    """
     vectorizer = TfidfVectorizer().fit([text1, text2])
     vectors = vectorizer.transform([text1, text2])
     return cosine_similarity(vectors[0], vectors[1])[0][0]
@@ -153,91 +114,92 @@ def generate_candidate_pairs(
     nlp,
     lemmatize_cache,
     simhash_cache,
+    config
 ):
-    """
-    Generate candidate suspicious-source sentence pairs using:
-    1. exact SimHash match
-    2. adaptive SimHash distance over lemmatised text
-    3. TF-IDF lexical similarity threshold
-    """
     exact_matches = []
     candidate_pairs = []
 
-    for suspicious_text in suspicious_sentences:
+    for suspicious_sentence in suspicious_sentences:
         suspicious_hash = compute_simhash(
-            suspicious_text,
-            SIMHASH_NGRAM_SIZE,
+            suspicious_sentence,
+            config["simhash_n"],
             simhash_cache
         )
 
         match_found = False
 
-        for source_text in source_sentences:
+        # Exact SimHash match on original sentence text
+        for source_sentence in source_sentences:
             source_hash = compute_simhash(
-                source_text,
-                SIMHASH_NGRAM_SIZE,
+                source_sentence,
+                config["simhash_n"],
                 simhash_cache
             )
 
             distance = bin(suspicious_hash ^ source_hash).count("1")
 
             if distance == 0:
-                exact_matches.append((suspicious_text, 1.0))
+                exact_matches.append((suspicious_sentence, 1.0))
                 match_found = True
                 break
 
         if match_found:
             continue
 
-        suspicious_lemma = lemmatize_text(suspicious_text, nlp, lemmatize_cache)
+        suspicious_lemma = lemmatize_text(
+            suspicious_sentence,
+            nlp,
+            lemmatize_cache
+        )
 
-        for source_text in source_sentences:
-            source_lemma = lemmatize_text(source_text, nlp, lemmatize_cache)
+        for source_sentence in source_sentences:
+            source_lemma = lemmatize_text(
+                source_sentence,
+                nlp,
+                lemmatize_cache
+            )
 
             suspicious_lemma_hash = compute_simhash(
                 suspicious_lemma,
-                SIMHASH_NGRAM_SIZE,
+                config["simhash_n"],
                 simhash_cache
             )
             source_lemma_hash = compute_simhash(
                 source_lemma,
-                SIMHASH_NGRAM_SIZE,
+                config["simhash_n"],
                 simhash_cache
             )
 
             distance = bin(suspicious_lemma_hash ^ source_lemma_hash).count("1")
 
             adaptive_k = (
-                SHORT_SENTENCE_K
+                config["short_sentence_k"]
                 if len(suspicious_lemma.split()) < 10
-                else LONG_SENTENCE_K
+                else config["long_sentence_k"]
             )
 
             if distance == 0:
-                exact_matches.append((suspicious_text, 1.0))
+                exact_matches.append((suspicious_sentence, 1.0))
                 match_found = True
                 break
 
             if (
                 distance < adaptive_k
                 and lexical_similarity(suspicious_lemma, source_lemma)
-                > LEXICAL_SIMILARITY_THRESHOLD
+                > config["lexical_similarity_threshold"]
             ):
-                candidate_pairs.append((suspicious_text, source_text, distance))
+                candidate_pairs.append(
+                    (suspicious_sentence, source_sentence, distance)
+                )
 
     return exact_matches, candidate_pairs
 
 
 # =========================================================
-# Verifier model
+# Semantic Verification
 # =========================================================
 
-def load_verifier(verifier_name: str, model_path: str, device):
-    """
-    Load the selected verifier model and tokenizer.
-    """
-    config = VERIFIER_CONFIG[verifier_name]
-
+def load_verifier(model_path: str, config: dict, device):
     tokenizer = AutoTokenizer.from_pretrained(
         model_path,
         trust_remote_code=True
@@ -246,40 +208,36 @@ def load_verifier(verifier_name: str, model_path: str, device):
     model = AutoModelForSequenceClassification.from_pretrained(
         model_path,
         trust_remote_code=True,
-        use_flash_attn=False,
+        use_flash_attn=False
     )
 
-    if config["type"] == "jina_v2_classifier":
-        dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
-        model = model.to(device=device, dtype=dtype)
+    if torch.cuda.is_available():
+        model = model.to(device=device, dtype=torch.bfloat16)
     else:
-        model = model.to(device)
+        model = model.to(device=device, dtype=torch.float32)
 
     model.eval()
-
-    return tokenizer, model, config
+    return tokenizer, model
 
 
 def classify_candidate_pairs(pairs, tokenizer, model, config, device):
-    """
-    Apply the verifier model to candidate sentence pairs.
-    """
     if not pairs:
         return []
 
-    results = []
+    accepted = []
     batch_size = config["batch_size"]
     threshold = config["threshold"]
     max_length = config["max_length"]
 
     for i in range(0, len(pairs), batch_size):
         batch = pairs[i:i + batch_size]
-        batch_suspicious = [suspicious for suspicious, source, _ in batch]
-        batch_source = [source for suspicious, source, _ in batch]
+
+        suspicious_batch = [suspicious for suspicious, source, _ in batch]
+        source_batch = [source for suspicious, source, _ in batch]
 
         inputs = tokenizer(
-            batch_suspicious,
-            text_pair=batch_source,
+            suspicious_batch,
+            text_pair=source_batch,
             padding=True,
             truncation=True,
             max_length=max_length,
@@ -287,32 +245,29 @@ def classify_candidate_pairs(pairs, tokenizer, model, config, device):
         ).to(device)
 
         with torch.no_grad():
-            logits = model(**inputs).logits
-
-            if config["type"] == "jina_v2_classifier":
-                probabilities = torch.sigmoid(logits.view(-1)).detach().float().cpu().numpy()
-            else:
-                probabilities = torch.softmax(logits, dim=-1)[:, 1].detach().cpu().numpy()
+            logits = model(**inputs).logits.view(-1)
+            probabilities = torch.sigmoid(logits).detach().float().cpu().numpy()
 
         for j, score in enumerate(probabilities):
             if score >= threshold:
-                results.append((batch[j][0], float(score)))
+                accepted.append((batch[j][0], float(score)))
 
         del inputs, logits
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-    return results
+    return accepted
 
 
 # =========================================================
-# Metrics
+# Evaluation Metrics
 # =========================================================
+
+def lemmatize_tokens(text: str, nlp, cache: dict):
+    return lemmatize_text(text, nlp, cache).split()
+
 
 def compute_token_metrics(gold_tokens, predicted_tokens):
-    """
-    Compute token-level precision, recall, and F1 using set overlap.
-    """
     gold_set = set(gold_tokens)
     predicted_set = set(predicted_tokens)
 
@@ -342,40 +297,24 @@ def compute_token_metrics(gold_tokens, predicted_tokens):
 
 
 # =========================================================
-# Main evaluation
+# Main Evaluation
 # =========================================================
 
-def evaluate_long_document_pipeline(
-    input_csv: str,
-    model_path: str,
-    output_dir: str,
-    verifier_name: str = "jina_v2_base_multi",
-    use_gpu_stanza: bool = True,
-):
-    """
-    Evaluate the long-document semantic reuse detection pipeline.
-
-    Expected CSV columns:
-    - suspicious_document
-    - source_document
-    - suspicious_content
-    - source_content
-    - suspicious_words
-
-    The public version does not save full gold or predicted text
-    in the error-analysis file to avoid redistributing dataset content.
-    """
+def run_evaluation(input_csv: str, model_path: str, output_dir: str):
     os.makedirs(output_dir, exist_ok=True)
+
+    config = DEFAULT_CONFIG
+    timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     nlp = stanza.Pipeline(
         "kk",
         processors="tokenize,lemma",
-        use_gpu=use_gpu_stanza and torch.cuda.is_available()
+        use_gpu=torch.cuda.is_available()
     )
 
-    tokenizer, model, config = load_verifier(verifier_name, model_path, device)
+    tokenizer, model = load_verifier(model_path, config, device)
 
     lemmatize_cache = {}
     simhash_cache = {}
@@ -383,27 +322,34 @@ def evaluate_long_document_pipeline(
     df = pd.read_csv(input_csv)
 
     results = []
-    error_analysis = []
-
     start_time = time.time()
-    timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M")
+
+    required_columns = [
+        "suspicious_document",
+        "source_document",
+        "suspicious_content",
+        "source_content",
+        "suspicious_words"
+    ]
+
+    for column in required_columns:
+        if column not in df.columns:
+            raise ValueError(f"Missing required column: {column}")
 
     for index, row in df.iterrows():
-        print(
-            f"Processing {index + 1}/{len(df)}: "
-            f"{row['suspicious_document']} vs {row['source_document']}"
-        )
-
         if pd.isna(row["suspicious_content"]) or pd.isna(row["source_content"]):
             continue
 
         suspicious_sentences = split_into_sentences(
             str(row["suspicious_content"]),
-            nlp
+            nlp,
+            config["min_sentence_token_length"]
         )
+
         source_sentences = split_into_sentences(
             str(row["source_content"]),
-            nlp
+            nlp,
+            config["min_sentence_token_length"]
         )
 
         simhash_matches, candidate_pairs = generate_candidate_pairs(
@@ -412,6 +358,7 @@ def evaluate_long_document_pipeline(
             nlp,
             lemmatize_cache,
             simhash_cache,
+            config
         )
 
         verifier_matches = classify_candidate_pairs(
@@ -419,24 +366,24 @@ def evaluate_long_document_pipeline(
             tokenizer,
             model,
             config,
-            device,
+            device
         )
 
         predicted_text = " ".join(
             text for text, _ in simhash_matches + verifier_matches
         )
 
-        predicted_tokens = lemmatize_text(
+        predicted_tokens = lemmatize_tokens(
             predicted_text,
             nlp,
             lemmatize_cache
-        ).split()
+        )
 
-        gold_tokens = lemmatize_text(
+        gold_tokens = lemmatize_tokens(
             str(row["suspicious_words"]),
             nlp,
             lemmatize_cache
-        ).split()
+        )
 
         precision, recall, f1 = compute_token_metrics(
             gold_tokens,
@@ -444,102 +391,62 @@ def evaluate_long_document_pipeline(
         )
 
         results.append({
-            "verifier": verifier_name,
+            "verifier": config["verifier"],
             "suspicious_document": row["suspicious_document"],
             "source_document": row["source_document"],
             "precision": precision,
             "recall": recall,
-            "f1": f1,
+            "f1": f1
         })
 
-        error_analysis.append({
-            "verifier": verifier_name,
-            "suspicious_document": row["suspicious_document"],
-            "source_document": row["source_document"],
-            "gold_token_count": len(gold_tokens),
-            "predicted_token_count": len(predicted_tokens),
-            "common_token_count": len(set(gold_tokens) & set(predicted_tokens)),
-            "missing_token_count": len(set(gold_tokens) - set(predicted_tokens)),
-            "extra_token_count": len(set(predicted_tokens) - set(gold_tokens)),
-        })
+    result_df = pd.DataFrame(results)
 
-    evaluation_df = pd.DataFrame(results)
-    error_df = pd.DataFrame(error_analysis)
-
-    metrics_path = os.path.join(
+    output_path = os.path.join(
         output_dir,
-        f"{verifier_name}_evaluation_metrics_{timestamp}.csv"
-    )
-    errors_path = os.path.join(
-        output_dir,
-        f"{verifier_name}_evaluation_errors_{timestamp}.csv"
+        f"{config['verifier']}_long_document_metrics_{timestamp}.csv"
     )
 
-    evaluation_df.to_csv(metrics_path, index=False)
-    error_df.to_csv(errors_path, index=False)
+    result_df.to_csv(output_path, index=False)
 
-    print("Saved evaluation metrics to:", metrics_path)
-    print("Saved error analysis to:", errors_path)
+    print("Saved evaluation metrics to:", output_path)
+    print("Average precision:", round(result_df["precision"].mean(), 4))
+    print("Average recall:", round(result_df["recall"].mean(), 4))
+    print("Average F1:", round(result_df["f1"].mean(), 4))
+    print("Runtime seconds:", round(time.time() - start_time, 2))
 
-    print("\nAverage Metrics:")
-    print(f"Precision: {evaluation_df['precision'].mean():.4f}")
-    print(f"Recall:    {evaluation_df['recall'].mean():.4f}")
-    print(f"F1 Score:  {evaluation_df['f1'].mean():.4f}")
-
-    print(f"Total time: {time.time() - start_time:.2f} seconds")
-
-    del df, results, error_analysis, evaluation_df, error_df
+    del df, result_df, results
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
     gc.collect()
 
 
-def parse_args():
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Evaluate the long-document semantic reuse detection pipeline."
+        description="Template for long-document semantic reuse evaluation."
     )
 
     parser.add_argument(
         "--input_csv",
         required=True,
-        help="Path to the input CSV file."
+        help="Path to input CSV containing suspicious/source document pairs."
     )
 
     parser.add_argument(
         "--model_path",
         required=True,
-        help="Path to the verifier model."
+        help="Path or Hugging Face identifier of the verifier model."
     )
 
     parser.add_argument(
         "--output_dir",
         default="outputs",
-        help="Directory where evaluation outputs will be saved."
+        help="Directory where evaluation results will be saved."
     )
 
-    parser.add_argument(
-        "--verifier",
-        default="jina_v2_base_multi",
-        choices=list(VERIFIER_CONFIG.keys()),
-        help="Verifier model configuration to use."
-    )
+    args = parser.parse_args()
 
-    parser.add_argument(
-        "--no_gpu_stanza",
-        action="store_true",
-        help="Disable GPU use for Stanza."
-    )
-
-    return parser.parse_args()
-
-
-if __name__ == "__main__":
-    args = parse_args()
-
-    evaluate_long_document_pipeline(
+    run_evaluation(
         input_csv=args.input_csv,
         model_path=args.model_path,
-        output_dir=args.output_dir,
-        verifier_name=args.verifier,
-        use_gpu_stanza=not args.no_gpu_stanza,
+        output_dir=args.output_dir
     )
