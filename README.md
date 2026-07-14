@@ -18,7 +18,7 @@ The main goal is to show that model rankings change across evaluation setting, d
 
 ## Evaluation Settings
 
-## 1. Pairwise PAN-KK Evaluation
+### 1. Pairwise PAN-KK Evaluation
 
 The pairwise evaluation uses the PAN-KK Kazakh PAN-style benchmark introduced in the authors' previous work. Models are evaluated on suspicious-source text pairs using precision, recall, and F1.
 
@@ -42,6 +42,20 @@ The long-document evaluation uses a three-stage framework:
 
 The system processes suspicious and source documents, retrieves candidate sentence pairs, applies a semantic decision model, and compares predicted reused text against gold reused text.
 
+## Relation to Previous PAN-KK Repository
+
+The PAN-KK dataset and original Kazakh extrinsic plagiarism detection pipeline were introduced in the previous project repository:
+
+https://github.com/bakhyt/kazakh-extrinsic-plagiarism-detection
+
+The present repository extends that work by focusing on model comparison across three evaluation settings:
+
+- pairwise PAN-KK classification
+- external Kazakh news-domain snippet-pair evaluation
+- long-document semantic reuse detection
+
+The full datasets are not duplicated in this repository. This repository provides code templates, configuration files, documentation, result tables, and synthetic sample input formats.
+
 ## Repository Structure
 
 ```text
@@ -53,5 +67,6 @@ news_evaluation/           Scripts for news-domain snippet-pair evaluation
 long_document_evaluation/  Scripts for long-document pipeline evaluation
 retrieval_ablation/        Retrieval-only ablation experiments
 results/                   Tables and result files used in the paper
-data/                      Dataset documentation, split IDs, and metadata
+data/                      Dataset documentation and synthetic sample input formats
 docs/                      Additional documentation
+```
