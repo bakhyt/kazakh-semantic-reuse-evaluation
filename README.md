@@ -18,13 +18,11 @@ The main goal is to show that model rankings change across evaluation setting, d
 
 ## Evaluation Settings
 
-### 1. Pairwise PAN-KK Evaluation
+## 1. Pairwise PAN-KK Evaluation
 
-The pairwise evaluation uses the PAN-KK Kazakh PAN-style benchmark. Models are evaluated on suspicious-source text pairs using precision, recall, and F1.
+The pairwise evaluation uses the PAN-KK Kazakh PAN-style benchmark introduced in the authors' previous work. Models are evaluated on suspicious-source text pairs using precision, recall, and F1.
 
-PAN-KK dataset DOI:
-
-https://doi.org/10.5281/zenodo.17538305
+The full PAN-KK dataset is not redistributed in this repository.
 
 ### 2. External News-Domain Evaluation
 
