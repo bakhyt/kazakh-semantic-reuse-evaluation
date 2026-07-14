@@ -1,6 +1,6 @@
 cff-version: 1.2.0
-title: "Kazakh Semantic Reuse Evaluation"
 message: "If you use this repository, please cite the CLEF 2026 paper."
+title: "Model Comparison for Kazakh Semantic Reuse Detection Across Pairwise, News, and Long-Document Evaluation"
 authors:
   - family-names: "Bakiyev"
     given-names: "Bakhyt"
@@ -9,7 +9,6 @@ authors:
   - family-names: "Ali"
     given-names: "Mubashir"
 repository-code: "https://github.com/bakhyt/kazakh-semantic-reuse-evaluation"
-title: "Model Comparison for Kazakh Semantic Reuse Detection Across Pairwise, News, and Long-Document Evaluation"
 conference:
   name: "CLEF 2026: Conference and Labs of the Evaluation Forum"
 date-released: "2026"
