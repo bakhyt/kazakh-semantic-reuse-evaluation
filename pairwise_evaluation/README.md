@@ -14,3 +14,10 @@ The evaluation script expects a CSV file with the following columns:
 ```text
 gold_label
 predicted_label
+```
+
+## Example Usage
+
+```bash
+python evaluate_pairwise_predictions.py predictions.csv
+```
